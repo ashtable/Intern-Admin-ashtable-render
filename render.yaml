@@ -1,0 +1,53 @@
+services:
+  - type: redis
+    name: Intern-Admin-redis
+    region: oregon
+    plan: starter # use a plan with persistence
+    maxmemoryPolicy: noeviction # recommended policy for queues
+    ipAllowList: [] # only allow internal connections
+  - type: web
+    runtime: node
+    name: Intern-Admin-web
+    region: oregon
+    repo: https://github.com/ashtable/Intern-Admin-ashtable-frontend
+    buildCommand: "npm install; npm run build" 
+    startCommand: "npm run start"
+    envVars:
+      - key: FASTAPI_URL
+        value: http://Intern-Admin-api:10000
+  - type: pserv
+    runtime: python
+    name: Intern-Admin-api
+    region: oregon
+    repo: https://github.com/SupaLlama/Intern-Admin-ashtable-backend
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: Intern-Admin-redis
+          type: redis
+          property: connectionString
+      - key: CELERY_RESULT_URL
+        fromService:
+          name: Intern-Admin-redis
+          type: redis
+          property: connectionString
+  - type: worker
+    runtime: python
+    name: Intern-Admin-worker
+    region: oregon
+    repo: https://github.com/ashtable/Intern-Admin-ashtable-backend
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "celery -A main.celery worker --loglevel=info --concurrency 2"
+    envVars:
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: Intern-Admin-redis
+          type: redis
+          property: connectionString
+      - key: CELERY_RESULT_URL
+        fromService:
+          name: Intern-Admin-redis
+          type: redis
+          property: connectionString
